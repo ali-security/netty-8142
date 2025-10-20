@@ -190,7 +190,10 @@ final class CompletionQueue {
                 long udata = completionQueueArray.getLong(cqePosition + CQE_USER_DATA_FIELD);
                 int res = completionQueueArray.getInt(cqePosition + CQE_RES_FIELD);
                 int flags = completionQueueArray.getInt(cqePosition + CQE_FLAGS_FIELD);
-
+                if ((flags & Native.IORING_CQE_F_32) != 0) {
+                    // We used mixed mode and this was a 32 byte CQE, let's increment the head once more.
+                    head++;
+                }
                 sb.add("(res=" + res).add(", flags=" + flags).add(", udata=" + udata).add(")");
             }
         }
