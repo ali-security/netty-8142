@@ -80,7 +80,6 @@ final class CompletionQueue {
                 extraCqeData[i] = completionQueueArray.slice();
                 completionQueueArray.clear();
             }
-            completionQueueArray.clear();
         } else {
             this.extraCqeData = null;
         }
