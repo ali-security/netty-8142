@@ -21,6 +21,8 @@ import org.junit.jupiter.api.condition.DisabledIf;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.nio.ByteBuffer;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -221,22 +223,29 @@ public class SubmissionQueueTest {
                 result = submissionQueue.addNop((byte) 0, 1);
             }
             assertThat(result).isNotZero();
-            assertEquals(1, submissionQueue.submitAndGet());
-            assertEquals(cqeSize == CqeSize.MIXED ? 2 : 1, completionQueue.count());
-            int processed = completionQueue.process((res, flags, udata, extraCqeData) -> {
-                assertEquals(0, res);
-                assertEquals(cqeSize == CqeSize.MIXED ? Native.IORING_CQE_F_32 : 0, flags);
-                assertEquals(1, udata);
-                if (cqeSize == CqeSize.LARGE || cqeSize == CqeSize.MIXED) {
-                    assertNotNull(extraCqeData);
-                    assertEquals(0, extraCqeData.position());
-                    assertEquals(16, extraCqeData.limit());
-                } else {
-                    assertNull(extraCqeData);
+            assertThat(submissionQueue.addNop((byte) 0, 1)).isNotZero();
+
+            assertEquals(2, submissionQueue.submitAndGet());
+            assertEquals(cqeSize == CqeSize.MIXED ? 3 : 2, completionQueue.count());
+            int processed = completionQueue.process(new CompletionCallback() {
+                private boolean first = true;
+                @Override
+                public boolean handle(int res, int flags, long udata, ByteBuffer extraCqeData) {
+                    assertEquals(0, res);
+                    assertEquals(cqeSize == CqeSize.MIXED && first ? Native.IORING_CQE_F_32 : 0, flags);
+                    assertEquals(1, udata);
+                    if (cqeSize == CqeSize.LARGE || (cqeSize == CqeSize.MIXED && first)) {
+                        assertNotNull(extraCqeData);
+                        assertEquals(0, extraCqeData.position());
+                        assertEquals(16, extraCqeData.limit());
+                    } else {
+                        assertNull(extraCqeData);
+                    }
+                    first = false;
+                    return true;
                 }
-                return true;
             });
-            assertEquals(1, processed);
+            assertEquals(2, processed);
             assertFalse(completionQueue.hasCompletions());
         } finally {
             ringBuffer.close();
